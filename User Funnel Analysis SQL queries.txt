@@ -1,0 +1,258 @@
+-- =====================================================
+-- User Funnel Analysis Project
+-- Author: Deepanshu
+
+TOOLS USED:
+- PostgreSQL
+- Python (Pandas)
+- Power BI
+
+BUSINESS OBJECTIVE:
+Analyze user behavior across the funnel to identify
+conversion bottlenecks and revenue opportunities.
+
+-- =====================================================
+
+
+
+select * from user_funnel;
+
+--Q1 - How many users are reaching each stage of our funnel?
+
+SELECT
+    event,
+    COUNT(DISTINCT user_id) AS total_users
+FROM user_funnel
+GROUP BY event
+ORDER BY total_users DESC;
+
+--Q2 - What percentage of users moved from one stage to the next?
+
+SELECT 
+COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END) as Total_browse,
+COUNT(DISTINCT CASE WHEN event = 'Add to Cart' THEN user_id END) as Total_ADC,
+COUNT(DISTINCT CASE WHEN event = 'Checkout' THEN user_id END) as Total_browse,
+COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) as Total_browse,
+
+ROUND(COUNT(DISTINCT CASE WHEN event = 'Add to Cart' THEN user_id END)*100.0
+/ COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END),2) 
+AS browse_to_cart_conversion_pct,
+
+ROUND(COUNT(DISTINCT CASE WHEN event = 'Checkout' THEN user_id END)*100.0
+/ COUNT(DISTINCT CASE WHEN event = 'Add to Cart' THEN user_id END),2) 
+AS checkout_conversion_pct,
+
+ROUND(COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END)*100.0
+/ COUNT(DISTINCT CASE WHEN event = 'Checkout' THEN user_id END),2) 
+AS checkout_conversion_pct
+
+FROM user_funnel;
+
+
+--Q3 - Which device converts best?
+
+SELECT device,
+COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END) as browse_users,
+COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) as purchase_users,
+
+ROUND(COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END)*100.0
+/ COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END),2) 
+AS conversion_pct
+
+FROM user_funnel
+GROUP BY device
+ORDER BY conversion_pct DESC -- stakeholders immediately notice least performing device;
+
+
+--Q4 - Which acquisition channel brings the highest-quality traffic?
+
+SELECT
+    channel,
+    COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END) AS browse_users,
+    COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) AS purchase_users,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) * 100.0
+        /
+        COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END),
+        2
+    ) AS conversion_pct
+FROM user_funnel
+GROUP BY channel
+ORDER BY conversion_pct DESC;
+
+--Q5 - Which Region Converts Best?
+
+SELECT
+    region,
+    COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END) AS browse_users,
+    COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) AS purchase_users,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) * 100.0
+        /
+        COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END),
+        2
+    ) AS conversion_pct
+FROM user_funnel
+GROUP BY region
+ORDER BY conversion_pct DESC;
+
+--Q6 - Which Product Category Converts Best?
+
+SELECT
+    product_category,
+    COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END) AS browse_users,
+    COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) AS purchase_users,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) * 100.0
+        /
+        COUNT(DISTINCT CASE WHEN event = 'Browse' THEN user_id END),
+        2
+    ) AS conversion_pct
+FROM user_funnel
+GROUP BY product_category
+ORDER BY conversion_pct DESC;
+
+
+--Q7 - Which Product Category Generates the Most Revenue?
+
+SELECT product_category, SUM(revenue) AS total_revenue
+FROM user_funnel
+GROUP BY product_category
+ORDER BY total_revenue DESC;
+
+
+--  largest share of total revenue?
+
+WITH total_revenue AS (
+    SELECT SUM(revenue)::numeric AS grand_total
+    FROM user_funnel
+)
+
+SELECT
+    product_category,
+    SUM(revenue) AS revenue_per_category,
+    ROUND(
+        (
+            SUM(revenue) * 100.0 /
+            (SELECT grand_total FROM total_revenue)
+        )::numeric,
+        2
+    ) AS revenue_share_pct
+FROM user_funnel
+GROUP BY product_category
+ORDER BY revenue_share_pct DESC;
+ 
+
+--Q8 - Which Channel Generates the Highest Revenue Per Purchase?
+-- Which acquisition channel brings the highest-value customers?
+
+
+SELECT
+    channel,
+    ROUND(AVG(revenue)::numeric, 2) AS avg_revenue_per_purchase
+FROM user_funnel
+WHERE event = 'Purchase'
+GROUP BY channel
+ORDER BY avg_revenue_per_purchase DESC;
+
+
+-- Q9 - What Are the Peak Hours of User Activity?
+
+SELECT
+    hour,
+    COUNT(*) AS total_events
+FROM user_funnel
+GROUP BY hour
+ORDER BY total_events DESC;
+
+
+--Q10 - Which hours generate the highest number of purchases?
+
+SELECT
+    hour,
+	 COUNT(DISTINCT CASE WHEN event = 'Purchase' THEN user_id END) 
+	 AS purchase_users
+FROM user_funnel
+GROUP BY hour
+ORDER BY purchase_users DESC;
+
+--Q11 - Which day of the week generates the highest revenue?
+
+SELECT
+    day,
+    ROUND(SUM(revenue)::numeric,0) AS total_revenue
+FROM user_funnel
+GROUP BY day
+ORDER BY total_revenue DESC; 
+
+
+-- Q12 - Which Product Category Generates the Highest Average Revenue Per Purchase?
+
+SELECT
+    product_category,
+    ROUND(AVG(revenue)::numeric, 2) AS avg_revenue
+FROM user_funnel
+WHERE event = 'Purchase'
+GROUP BY product_category
+ORDER BY avg_revenue DESC;
+
+
+-- Q13 - How much revenue is generated at each stage?
+
+SELECT
+    event,
+    ROUND(SUM(revenue),0) AS total_revenue
+FROM user_funnel
+GROUP BY event
+ORDER BY total_revenue DESC;
+
+-- Q14 - Which product category performs best within each channel?
+
+SELECT
+    channel,
+    product_category,
+    ROUND(SUM(revenue),0) AS total_revenue
+FROM user_funnel
+GROUP BY channel, product_category
+ORDER BY total_revenue DESC;
+
+--Q15 - At what hour does the business make the most money?
+
+SELECT
+    hour,
+    ROUND(SUM(revenue),0) AS total_revenue
+FROM user_funnel
+WHERE event = 'Purchase'
+GROUP BY hour
+ORDER BY total_revenue DESC;
+
+
+
+SELECT hour,
+ROUND(SUM(revenue)::numeric,0) AS total_revenue
+FROM user_funnel
+WHERE event='Purchase'
+GROUP BY hour
+ORDER BY total_revenue DESC;
+
+
+
+
+SELECT day,
+ROUND(SUM(revenue)::numeric,0) AS total_revenue
+FROM user_funnel
+WHERE event='Purchase'
+GROUP BY day
+ORDER BY total_revenue DESC;
+
+
+
+
+
+
+
+
+
+
+
+
